@@ -31,24 +31,31 @@
 #ifndef __SDS_H
 #define __SDS_H
 
+//最大预分配长度
 #define SDS_MAX_PREALLOC (1024*1024)
 
 #include <sys/types.h>
 #include <stdarg.h>
 
+//类型别名，用于指向sdshdr的buf
 typedef char *sds;
 
+//保存字符串对象的结构，sdshdr分配内存时，假如buf需要10字节，那么会分配一块连续的内存，大小为sizeof(sdshdr)+10+1,
+//其中1字节用于存储字符串末尾的'\0';sizeof(sdshdr)是用于len, free和buf的字节，它们会位于buf内容的前面。都在一块连续的内存里
 struct sdshdr {
+    //当前buf已占用空间的长度，不包括最后的'\0'
     unsigned int len;
+    //buf中剩余空间的长度
     unsigned int free;
     char buf[];
 };
 
+//sds s就是buf，往前找sizeof(sdshdr)个字节，就是整个结构体的起始地址，返回len即可。
 static inline size_t sdslen(const sds s) {
     struct sdshdr *sh = (void*)(s-(sizeof(struct sdshdr)));
     return sh->len;
 }
-
+//sds s就是buf，往前找sizeof(sdshdr)个字节，就是整个结构体的起始地址，返回free即可。
 static inline size_t sdsavail(const sds s) {
     struct sdshdr *sh = (void*)(s-(sizeof(struct sdshdr)));
     return sh->free;
