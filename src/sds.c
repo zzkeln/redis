@@ -763,21 +763,28 @@ int sdscmp(const sds s1, const sds s2) {
  * requires length arguments. sdssplit() is just the
  * same function but for zero-terminated strings.
  */
+//用分隔符 sep 对 s 进行分割，返回一个 sds 字符串的数组。
 sds *sdssplitlen(const char *s, int len, const char *sep, int seplen, int *count) {
     int elements = 0, slots = 5, start = 0, j;
     sds *tokens;
 
+    //如果zero length separator, NULL is returned.
     if (seplen < 1 || len < 0) return NULL;
 
+    //分配slots个sds内存，每个sds暂时未指向任何内容
     tokens = zmalloc(sizeof(sds)*slots);
     if (tokens == NULL) return NULL;
 
+    //不是说zero length string返回NULL的嘛，这里却返回了tokens。。。
     if (len == 0) {
         *count = 0;
         return tokens;
     }
+    
+    //遍历字符串，最大的遍历位置
     for (j = 0; j < (len-(seplen-1)); j++) {
         /* make sure there is room for the next element and the final one */
+        //如果当前的slot+2大于已经分配的slots，那么重新分配slots
         if (slots < elements+2) {
             sds *newtokens;
 
@@ -787,11 +794,16 @@ sds *sdssplitlen(const char *s, int len, const char *sep, int seplen, int *count
             tokens = newtokens;
         }
         /* search the separator */
+        //the separator found in s[j]
         if ((seplen == 1 && *(s+j) == sep[0]) || (memcmp(s+j,sep,seplen) == 0)) {
+            //赋值sds，其中重新分配内存将被分割的内容给拷贝过去
             tokens[elements] = sdsnewlen(s+start,j-start);
             if (tokens[elements] == NULL) goto cleanup;
+            //新增一个sds
             elements++;
+            //新的sds开始的字符串位置
             start = j+seplen;
+            //j的新位置，这里要-1因为for循环里有j++
             j = j+seplen-1; /* skip the separator */
         }
     }
@@ -805,7 +817,9 @@ sds *sdssplitlen(const char *s, int len, const char *sep, int seplen, int *count
 cleanup:
     {
         int i;
+        //分配的sds都释放掉
         for (i = 0; i < elements; i++) sdsfree(tokens[i]);
+        //释放掉数组
         zfree(tokens);
         *count = 0;
         return NULL;
@@ -813,6 +827,7 @@ cleanup:
 }
 
 /* Free the result returned by sdssplitlen(), or do nothing if 'tokens' is NULL. */
+//释放 tokens 数组中 count 个 sds
 void sdsfreesplitres(sds *tokens, int count) {
     if (!tokens) return;
     while(count--)
@@ -826,6 +841,7 @@ void sdsfreesplitres(sds *tokens, int count) {
  *
  * After the call, the modified sds string is no longer valid and all the
  * references must be substituted with the new pointer returned by the call. */
+// 将长度为 len 的字符串 p 以带引号（quoted）的格式追加到给定s的末尾
 sds sdscatrepr(sds s, const char *p, size_t len) {
     s = sdscatlen(s,"\"",1);
     while(len--) {
@@ -853,6 +869,7 @@ sds sdscatrepr(sds s, const char *p, size_t len) {
 
 /* Helper function for sdssplitargs() that returns non zero if 'c'
  * is a valid hex digit. */
+//如果 c 为十六进制符号的其中一个，返回正数
 int is_hex_digit(char c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
            (c >= 'A' && c <= 'F');
@@ -860,6 +877,7 @@ int is_hex_digit(char c) {
 
 /* Helper function for sdssplitargs() that converts a hex digit into an
  * integer from 0 to 15 */
+//将十六进制数字转换成十进制
 int hex_digit_to_int(char c) {
     switch(c) {
     case '0': return 0;
@@ -901,6 +919,7 @@ int hex_digit_to_int(char c) {
  * quotes or closed quotes followed by non space characters
  * as in: "foo"bar or "foo'
  */
+//将一行文本分割成多个参数
 sds *sdssplitargs(const char *line, int *argc) {
     const char *p = line;
     char *current = NULL;
@@ -1019,7 +1038,9 @@ err:
  * will have the effect of turning the string "hello" into "0ell1".
  *
  * The function returns the sds string pointer, that is always the same
- * as the input pointer since no resize is needed. */
+ * as the input pointer since no resize is needed.
+ 因为无须对 sds 进行大小调整，所以返回的sds和输入一样大小，而且位置不变*/
+//将字符串 s 中，所有在 from 中出现的字符，替换成 to 中的字符
 sds sdsmapchars(sds s, const char *from, const char *to, size_t setlen) {
     size_t j, i, l = sdslen(s);
 
@@ -1036,6 +1057,7 @@ sds sdsmapchars(sds s, const char *from, const char *to, size_t setlen) {
 
 /* Join an array of C strings using the specified separator (also a C string).
  * Returns the result as an sds string. */
+//将参数都连起来，用sep来分隔
 sds sdsjoin(char **argv, int argc, char *sep) {
     sds join = sdsempty();
     int j;
