@@ -38,13 +38,14 @@
  * by the user before to call AlFreeList().
  *
  * On error, NULL is returned. Otherwise the pointer to the new list. */
-
+//创建一个新的链表
 list *listCreate(void)
 {
     struct list *list;
-
+    //分配内存
     if ((list = zmalloc(sizeof(*list))) == NULL)
         return NULL;
+    //初始化各个属性
     list->head = list->tail = NULL;
     list->len = 0;
     list->dup = NULL;
@@ -56,6 +57,7 @@ list *listCreate(void)
 /* Free the whole list.
  *
  * This function can't fail. */
+//释放整个链表，以及链表中所有节点（先释放节点的value，然后释放节点内存，最后释放整个链表内存）
 void listRelease(list *list)
 {
     unsigned long len;
@@ -63,12 +65,14 @@ void listRelease(list *list)
 
     current = list->head;
     len = list->len;
+    //遍历整个链表，依次释放节点的value，和该节点的内存
     while(len--) {
         next = current->next;
         if (list->free) list->free(current->value);
         zfree(current);
         current = next;
     }
+    //最后释放整个链表结构
     zfree(list);
 }
 
@@ -78,13 +82,15 @@ void listRelease(list *list)
  * On error, NULL is returned and no operation is performed (i.e. the
  * list remains unaltered).
  * On success the 'list' pointer you pass to the function is returned. */
+//添加一个新节点到链表头，返回链表指针
 list *listAddNodeHead(list *list, void *value)
 {
     listNode *node;
-
+    //为节点分配内存
     if ((node = zmalloc(sizeof(*node))) == NULL)
         return NULL;
     node->value = value;
+    //处理非空链表和空链表两种情况
     if (list->len == 0) {
         list->head = list->tail = node;
         node->prev = node->next = NULL;
@@ -94,6 +100,7 @@ list *listAddNodeHead(list *list, void *value)
         list->head->prev = node;
         list->head = node;
     }
+    //更新链表节点数
     list->len++;
     return list;
 }
@@ -104,13 +111,15 @@ list *listAddNodeHead(list *list, void *value)
  * On error, NULL is returned and no operation is performed (i.e. the
  * list remains unaltered).
  * On success the 'list' pointer you pass to the function is returned. */
+//添加一个新节点到链表尾部
 list *listAddNodeTail(list *list, void *value)
 {
     listNode *node;
-
+    //分配内存
     if ((node = zmalloc(sizeof(*node))) == NULL)
         return NULL;
     node->value = value;
+    //处理非空链表和空链表两种情况
     if (list->len == 0) {
         list->head = list->tail = node;
         node->prev = node->next = NULL;
@@ -120,6 +129,7 @@ list *listAddNodeTail(list *list, void *value)
         list->tail->next = node;
         list->tail = node;
     }
+    //更新链表节点数
     list->len++;
     return list;
 }
