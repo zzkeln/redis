@@ -51,7 +51,7 @@ typedef struct list {
     listNode *tail; //表尾节点
     void *(*dup)(void *ptr);//节点值复制函数
     void (*free)(void *ptr);//节点值释放函数
-    int (*match)(void *ptr, void *key);//节点值比较函数
+    int (*match)(void *ptr, void *key);//节点值比较函数，相等返回非0，不等返回0？
     unsigned long len;
 } list;
 
