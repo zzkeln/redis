@@ -291,6 +291,7 @@ list *listDup(list *orig)
         void *value;
 
         if (copy->dup) {
+            //复制节点的value到新节点，如果复制失败释放整个新链表然后返回ＮＵＬＬ
             value = copy->dup(node->value);
             if (value == NULL) {
                 listRelease(copy);
@@ -298,14 +299,18 @@ list *listDup(list *orig)
                 return NULL;
             }
         } else
+            //没有复制函数，和老链表共用一个value指针
             value = node->value;
+        //将节点添加到链表末尾
         if (listAddNodeTail(copy, value) == NULL) {
             listRelease(copy);
             listReleaseIterator(iter);
             return NULL;
         }
     }
+    //释放迭代器
     listReleaseIterator(iter);
+    //返回副本
     return copy;
 }
 
@@ -318,25 +323,30 @@ list *listDup(list *orig)
  * On success the first matching node pointer is returned
  * (search starts from head). If no matching node exists
  * NULL is returned. */
+//查找链表list中值和key匹配的节点
 listNode *listSearchKey(list *list, void *key)
 {
     listIter *iter;
     listNode *node;
-
+    //迭代整个链表
     iter = listGetIterator(list, AL_START_HEAD);
     while((node = listNext(iter)) != NULL) {
+        //存在对比函数
         if (list->match) {
+            //找到节点了，先释放迭代器
             if (list->match(node->value, key)) {
                 listReleaseIterator(iter);
                 return node;
             }
         } else {
+            //单纯比较指针，找到
             if (key == node->value) {
                 listReleaseIterator(iter);
                 return node;
             }
         }
     }
+    //这是未找到，返回ＮＵＬＬ
     listReleaseIterator(iter);
     return NULL;
 }
@@ -346,14 +356,17 @@ listNode *listSearchKey(list *list, void *key)
  * and so on. Negative integers are used in order to count
  * from the tail, -1 is the last element, -2 the penultimate
  * and so on. If the index is out of range NULL is returned. */
+//根据索引找到相应的节点
 listNode *listIndex(list *list, long index) {
     listNode *n;
-
+    
+    //如果索引为负数，从表尾开始查找
     if (index < 0) {
         index = (-index)-1;
         n = list->tail;
         while(index-- && n) n = n->prev;
     } else {
+    //如果索引为正数，从表头开始查找
         n = list->head;
         while(index-- && n) n = n->next;
     }
@@ -361,15 +374,20 @@ listNode *listIndex(list *list, long index) {
 }
 
 /* Rotate the list removing the tail node and inserting it to the head. */
+//取出链表的表尾节点，并将它移动到表头，成为新的表头节点
 void listRotate(list *list) {
     listNode *tail = list->tail;
 
+    //只有一个节点，不用动
     if (listLength(list) <= 1) return;
 
     /* Detach current tail */
+    //更新新的表尾节点
     list->tail = tail->prev;
     list->tail->next = NULL;
+    
     /* Move it as head */
+    //将老的表尾节点更新为表头节点
     list->head->prev = tail;
     tail->prev = NULL;
     tail->next = list->head;
