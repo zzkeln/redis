@@ -45,7 +45,7 @@ typedef struct listIter {
     int direction;  //迭代的方向
 } listIter;
 
-//双端链表结构
+//双端链表结构，注意head和tail都不是dummy节点，head和tail的value是有价值的
 typedef struct list { 
     listNode *head; //表头节点
     listNode *tail; //表尾节点
