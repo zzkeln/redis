@@ -1049,11 +1049,12 @@ static int _dictExpandIfNeeded(dict *d)
      * the number of buckets. */
     //以下2个条件中任何1个满足时，对字典进行扩展
     //1)：字典已使用的的节点数和字典大小之间的比率接近1:1，并且dict_can_resize为真
-    //2)：
+    //2)：已使用节点数和字典大小之间的比率超过dict_force_resize_ratio
     if (d->ht[0].used >= d->ht[0].size &&
         (dict_can_resize ||
          d->ht[0].used/d->ht[0].size > dict_force_resize_ratio))
     {
+        //新哈希表的大小至少是目前已使用节点数的两倍
         return dictExpand(d, d->ht[0].used*2);
     }
     return DICT_OK;
