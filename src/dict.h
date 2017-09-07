@@ -93,8 +93,8 @@ typedef struct dict {
  * iterating. Otherwise it is a non safe iterator, and only dictNext()
  * should be called while iterating. */
 //字典迭代器
-//如果safe=1，那么在迭代进行的过程中，程序仍然可以执行dictAdd，dictFind和其它函数，对字典进行修改
-//如果safe不1，那么程序只会调用dictNext对字典进行迭代，而不对字典进行修改
+//如果safe=1，安全迭代器，那么在迭代进行的过程中，程序仍然可以执行dictAdd，dictFind和其它函数，对字典进行修改
+//如果safe==0，不安全迭代器，那么程序只会调用dictNext对字典进行迭代，而不对字典进行修改
 typedef struct dictIterator {
     //被迭代的字典
     dict *d;
