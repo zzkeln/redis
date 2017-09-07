@@ -38,46 +38,53 @@
 #ifndef __DICT_H
 #define __DICT_H
 
+//字典的操作状态，操作成功 ，操作失败
 #define DICT_OK 0
 #define DICT_ERR 1
 
 /* Unused arguments generate annoying warnings... */
 #define DICT_NOTUSED(V) ((void) V)
 
+//哈希表节点
 typedef struct dictEntry {
-    void *key;
+    void *key;//键
     union {
         void *val;
         uint64_t u64;
         int64_t s64;
         double d;
-    } v;
-    struct dictEntry *next;
+    } v; //值
+    struct dictEntry *next; //指向下个哈希表节点，形成链表
 } dictEntry;
 
+//字典类型特定函数
 typedef struct dictType {
-    unsigned int (*hashFunction)(const void *key);
-    void *(*keyDup)(void *privdata, const void *key);
-    void *(*valDup)(void *privdata, const void *obj);
-    int (*keyCompare)(void *privdata, const void *key1, const void *key2);
-    void (*keyDestructor)(void *privdata, void *key);
-    void (*valDestructor)(void *privdata, void *obj);
+    unsigned int (*hashFunction)(const void *key);//计算哈希值得函数
+    void *(*keyDup)(void *privdata, const void *key);//复制键的函数
+    void *(*valDup)(void *privdata, const void *obj);//复制值得函数
+    int (*keyCompare)(void *privdata, const void *key1, const void *key2);//对比键的函数
+    void (*keyDestructor)(void *privdata, void *key);//销毁键的函数
+    void (*valDestructor)(void *privdata, void *obj);//销毁值得函数
 } dictType;
 
 /* This is our hash table structure. Every dictionary has two of this as we
  * implement incremental rehashing, for the old to the new table. */
+//哈希表（每个字典都使用2个哈希表，从而实现渐进式rehash)
 typedef struct dictht {
-    dictEntry **table;
-    unsigned long size;
-    unsigned long sizemask;
-    unsigned long used;
+    dictEntry **table; //哈希表数组（每个元素是一个dictEntry指针）
+    unsigned long size;//哈希表大小
+    unsigned long sizemask;//哈希表大小掩码，用于计算索引值，等于size-1
+    unsigned long used;//该哈希表已有节点的数量
 } dictht;
 
+//字典
 typedef struct dict {
-    dictType *type;
-    void *privdata;
-    dictht ht[2];
+    dictType *type;//类型特定函数
+    void *privdata;//私有数据
+    dictht ht[2];//哈希表
+    //rehash索引，当rehash不在进行时，值为-1
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
+    //目前正在进行的安全迭代器的数量
     int iterators; /* number of iterators currently running */
 } dict;
 
@@ -85,10 +92,17 @@ typedef struct dict {
  * dictAdd, dictFind, and other functions against the dictionary even while
  * iterating. Otherwise it is a non safe iterator, and only dictNext()
  * should be called while iterating. */
+//字典迭代器
+//如果safe=1，那么在迭代进行的过程中，程序仍然可以执行dictAdd，dictFind和其它函数，对字典进行修改
+//如果safe不1，那么程序只会调用dictNext对字典进行迭代，而不对字典进行修改
 typedef struct dictIterator {
+    //被迭代的字典
     dict *d;
-    long index;
-    int table, safe;
+    
+    long index;//迭代器当前所指向的哈希表所有位置
+    int table, safe;//table是正在被迭代的哈希表号码，值为0或1；safa标识这个迭代器是否安全
+    //entry是当前迭代到的节点的指针；nextEntry是当前迭代节点的下一个节点，因为在安全迭代器运作时，entry所指向的节点可能会被修改，
+    //所以需要一个额外的指针来保存下一个节点的位置，从而防止指针丢失
     dictEntry *entry, *nextEntry;
     /* unsafe iterator fingerprint for misuse detection. */
     long long fingerprint;
@@ -97,6 +111,7 @@ typedef struct dictIterator {
 typedef void (dictScanFunction)(void *privdata, const dictEntry *de);
 
 /* This is the initial size of every hash table */
+//哈希表初始化大小
 #define DICT_HT_INITIAL_SIZE     4
 
 /* ------------------------------- Macros ------------------------------------*/
