@@ -56,7 +56,7 @@
  * prevented: a hash table is still allowed to grow if the ratio between
  * the number of elements and the buckets > dict_force_resize_ratio. */
 static int dict_can_resize = 1; //指示词典是否启用rehash的标识
-static unsigned int dict_force_resize_ratio = 5; //强制rehash得比率
+static unsigned int dict_force_resize_ratio = 5; //强制rehash的比率
 
 /* -------------------------- private prototypes ---------------------------- */
 
@@ -177,11 +177,11 @@ dict *dictCreate(dictType *type,
 }
 
 /* Initialize the hash table */
-//初始化哈希表
+//初始化字典
 int _dictInit(dict *d, dictType *type,
         void *privDataPtr)
 {
-    //初始化两个哈希表的各项属性值，但暂时不分配内存给哈希表数组
+    //初始化两个哈希表的各项属性值，但暂时不分配内存给哈希表数组（即哈希表中无节点）
     _dictReset(&d->ht[0]);
     _dictReset(&d->ht[1]);
     d->type = type;//设置类型特定函数
@@ -210,6 +210,7 @@ int dictResize(dict *d)
 }
 
 /* Expand or create the hash table */
+//创建一个新哈希表for：0号哈希表在初始化时 或 1号哈希表即准备rehash
 int dictExpand(dict *d, unsigned long size)
 {
     dictht n; /* the new hash table */ //新哈希表
@@ -241,7 +242,8 @@ int dictExpand(dict *d, unsigned long size)
     }
 
     /* Prepare a second hash table for incremental rehashing */
-    //如果0号哈希表非空，那么这是一次rehash，将新哈希表设置为1号哈希表，并将字典的rehash标识打开，让程序可以开始对字典进行rehash
+    //如果0号哈希表非空，那么这是为rehash做准备而创建出1号哈希表，将新哈希表设置为1号哈希表
+    //并将字典的rehash标识打开，让程序可以开始对字典进行rehash
     d->ht[1] = n;
     d->rehashidx = 0;
     return DICT_OK;
@@ -256,14 +258,15 @@ int dictExpand(dict *d, unsigned long size)
  * guaranteed that this function will rehash even a single bucket, since it
  * will visit at max N*10 empty buckets in total, otherwise the amount of
  * work it does would be unbound and the function may block for a long time. */
-//执行n步渐进式rehash，返回1表示仍然有键需要从0号哈希表移动到1号哈希表，返回0则表示所有键都已经迁移完毕
+//执行n步渐进式rehash（每步对应于一个桶），返回1表示仍然有键需要从0号哈希表移动到1号哈希表，返回0则表示所有键都已经迁移完毕
 //注意每步rehash都是以一个哈希表索引（桶）为单位的，一个桶里可能会有多个节点，被rehash得桶里的所有节点都会被移动到新哈希表中
+//为了防止空的链表过多，这里最多会访问N*10个空链表
 int dictRehash(dict *d, int n) {
     int empty_visits = n*10; /* Max number of empty buckets to visit. */
     //只可以在rehash进行中时执行
     if (!dictIsRehashing(d)) return 0;
 
-    //进行n步迁移
+    //进行n步迁移，每步对应于一个桶
     while(n-- && d->ht[0].used != 0) {
         dictEntry *de, *nextde;
 
@@ -274,12 +277,12 @@ int dictRehash(dict *d, int n) {
         //略过数组中为空的索引，找到下一个非空索引
         while(d->ht[0].table[d->rehashidx] == NULL) {
             d->rehashidx++;
-            if (--empty_visits == 0) return 1;
+            if (--empty_visits == 0) return 1;//最多访问empty_visits个空桶
         }
         //指向该索引的链表表头节点
         de = d->ht[0].table[d->rehashidx];
         /* Move all the keys in this bucket from the old to the new hash HT */
-        //将链表中得所有节点迁移到新哈希表（这条链表的所有节点需要重新计算hash函数然后进行rehash)
+        //将链表中的所有节点迁移到新哈希表（这条链表的所有节点需要重新计算hash函数然后进行rehash)
         while(de) {
             unsigned int h;
 
@@ -307,6 +310,7 @@ int dictRehash(dict *d, int n) {
     if (d->ht[0].used == 0) {
         //释放0号哈希表
         zfree(d->ht[0].table);
+        //以下两步有点类似于双buffer切换
         //将原来的1号哈希表设置为新的0号哈希表
         d->ht[0] = d->ht[1];
         //重置旧的1号哈希表
@@ -335,6 +339,7 @@ int dictRehashMilliseconds(dict *d, int ms) {
     long long start = timeInMilliseconds();
     int rehashes = 0;
 
+    //每次100步的rehash，直到都搬完或者超过给定时间
     while(dictRehash(d,100)) {
         rehashes += 100;
         if (timeInMilliseconds()-start > ms) break;
@@ -385,7 +390,7 @@ int dictAdd(dict *d, void *key, void *val)
  * If key already exists NULL is returned.
  * If key was added, the hash entry is returned to be manipulated by the caller.
  */
-//尝试将键插入到字典中，如果键已经在字典中存在那么返回ＮＵＬＬ；如果键不存在，那么程序创建新的哈希节点，将节点和键关联，并
+//尝试将键插入到字典中，如果键已经在字典中存在那么返回NULL；如果键不存在，那么程序创建新的哈希节点，将节点和键关联，并
 //插入到字典然后返回节点本身
 dictEntry *dictAddRaw(dict *d, void *key)
 {
