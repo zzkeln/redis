@@ -84,7 +84,7 @@ typedef struct dict {
     dictht ht[2];//哈希表
     //rehash索引，当rehash不在进行时，值为-1。否则表示当前正在rehash的索引值
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
-    //目前正在进行的迭代器的数量
+    //目前正在进行的安全迭代器的数量
     int iterators; /* number of iterators currently running */
 } dict;
 
