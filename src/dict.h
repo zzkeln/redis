@@ -82,7 +82,7 @@ typedef struct dict {
     dictType *type;//类型特定函数
     void *privdata;//私有数据
     dictht ht[2];//哈希表
-    //rehash索引，当rehash不在进行时，值为-1
+    //rehash索引，当rehash不在进行时，值为-1。否则表示当前正在rehash的索引值
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
     //目前正在进行的安全迭代器的数量
     int iterators; /* number of iterators currently running */
@@ -99,7 +99,7 @@ typedef struct dictIterator {
     //被迭代的字典
     dict *d;
     
-    long index;//迭代器当前所指向的哈希表所有位置
+    long index;//迭代器当前所指向的哈希表索引位置
     int table, safe;//table是正在被迭代的哈希表号码，值为0或1；safa标识这个迭代器是否安全
     //entry是当前迭代到的节点的指针；nextEntry是当前迭代节点的下一个节点，因为在安全迭代器运作时，entry所指向的节点可能会被修改，
     //所以需要一个额外的指针来保存下一个节点的位置，从而防止指针丢失
@@ -111,7 +111,7 @@ typedef struct dictIterator {
 typedef void (dictScanFunction)(void *privdata, const dictEntry *de);
 
 /* This is the initial size of every hash table */
-//哈希表初始化大小
+//哈希表初始化大小 4个节点
 #define DICT_HT_INITIAL_SIZE     4
 
 /* ------------------------------- Macros ------------------------------------*/
