@@ -226,26 +226,33 @@ int zslDelete(zskiplist *zsl, double score, robj *obj) {
     return 0; /* not found */
 }
 
+//检测给定值value是否大于等于范围spec中的min项，大于等于返回1
 static int zslValueGteMin(double value, zrangespec *spec) {
     return spec->minex ? (value > spec->min) : (value >= spec->min);
 }
-
+//检测给定值value是否小于等于范围spec中得max项，小于等于返回1
 static int zslValueLteMax(double value, zrangespec *spec) {
     return spec->maxex ? (value < spec->max) : (value <= spec->max);
 }
 
 /* Returns if there is a part of the zset is in range. */
+//如果zsl的分值范围和range的范围有交集那么返回1，如果无交集返回0
 int zslIsInRange(zskiplist *zsl, zrangespec *range) {
     zskiplistNode *x;
 
     /* Test for ranges that will always be empty. */
+    //先排除总为空的范围值
     if (range->min > range->max ||
             (range->min == range->max && (range->minex || range->maxex)))
         return 0;
     x = zsl->tail;
+    //检查最大分值
+    //zslValueGteMin(x->score, range)返回0的话，表示zsl得最大分值小于range的min，那么range肯定不在跳跃表的范围内返回0
     if (x == NULL || !zslValueGteMin(x->score,range))
         return 0;
     x = zsl->header->level[0].forward;
+    //检查最小分值
+    //zslValueLteMax(x->score, range)返回0得话，表示zsl的最小分值大于range的max，那么range肯定不在跳跃表的范围内返回0
     if (x == NULL || !zslValueLteMax(x->score,range))
         return 0;
     return 1;
@@ -253,42 +260,52 @@ int zslIsInRange(zskiplist *zsl, zrangespec *range) {
 
 /* Find the first node that is contained in the specified range.
  * Returns NULL when no element is contained in the range. */
+//返回zsl中第一个分值符合range中指定范围的节点（画个图就知道如何遍历和判断了）
 zskiplistNode *zslFirstInRange(zskiplist *zsl, zrangespec *range) {
     zskiplistNode *x;
     int i;
 
     /* If everything is out of range, return early. */
+    //如果2个范围无交集，返回NULL
     if (!zslIsInRange(zsl,range)) return NULL;
 
     x = zsl->header;
+    //遍历跳跃表，查找符合范围min项的节点（找到的节点肯定大于range的min）
     for (i = zsl->level-1; i >= 0; i--) {
         /* Go forward while *OUT* of range. */
+        //当forward节点的score小于range的min项时，继续往前走
         while (x->level[i].forward &&
             !zslValueGteMin(x->level[i].forward->score,range))
                 x = x->level[i].forward;
     }
 
     /* This is an inner range, so the next node cannot be NULL. */
+    //拿到这个节点，这个节点的score是大于range的min项的
     x = x->level[0].forward;
     redisAssert(x != NULL);
 
     /* Check if score <= max. */
+    //如果节点score大于range的max项时，那么返回ＮＵＬＬ
     if (!zslValueLteMax(x->score,range)) return NULL;
     return x;
 }
 
 /* Find the last node that is contained in the specified range.
  * Returns NULL when no element is contained in the range. */
+//返回zsl中最后一个分值符合range中范围的节点（画个图就知道如何遍历和判断了）
 zskiplistNode *zslLastInRange(zskiplist *zsl, zrangespec *range) {
     zskiplistNode *x;
     int i;
 
     /* If everything is out of range, return early. */
+    //如果zsl和range无交集，返回ＮＵＬＬ
     if (!zslIsInRange(zsl,range)) return NULL;
 
     x = zsl->header;
+    //遍历跳跃表，查找符合范围max项的节点（找到的节点的forward节点的分值肯定大于range的max节点，此时x的分值小于等于range的max）
     for (i = zsl->level-1; i >= 0; i--) {
         /* Go forward while *IN* range. */
+        //如果forward的分值小于等于range的max，那么继续前进
         while (x->level[i].forward &&
             zslValueLteMax(x->level[i].forward->score,range))
                 x = x->level[i].forward;
@@ -298,6 +315,7 @@ zskiplistNode *zslLastInRange(zskiplist *zsl, zrangespec *range) {
     redisAssert(x != NULL);
 
     /* Check if score >= min. */
+    //检查节点如果小于range的min，返回NULL
     if (!zslValueGteMin(x->score,range)) return NULL;
     return x;
 }
