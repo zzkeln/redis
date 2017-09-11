@@ -173,8 +173,10 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, robj *obj) {
 }
 
 /* Internal function used by zslDelete, zslDeleteByScore and zslDeleteByRank */
+//内部删除节点函数，update是节点x在各个层的前面节点
 void zslDeleteNode(zskiplist *zsl, zskiplistNode *x, zskiplistNode **update) {
     int i;
+    //更新所有和被删除节点x有关的节点的指针，解除它们之间的关系
     for (i = 0; i < zsl->level; i++) {
         if (update[i]->level[i].forward == x) {
             update[i]->level[i].span += x->level[i].span - 1;
@@ -183,33 +185,39 @@ void zslDeleteNode(zskiplist *zsl, zskiplistNode *x, zskiplistNode **update) {
             update[i]->level[i].span -= 1;
         }
     }
+    //更新被删除节点x得前进和后退指针
     if (x->level[0].forward) {
         x->level[0].forward->backward = x->backward;
     } else {
         zsl->tail = x->backward;
     }
+    //更新跳跃表最大层数（只在被删除节点是跳跃表中最高的节点时才执行）
     while(zsl->level > 1 && zsl->header->level[zsl->level-1].forward == NULL)
         zsl->level--;
-    zsl->length--;
+    zsl->length--;//跳跃表节点计数器减1
 }
 
 /* Delete an element with matching score/object from the skiplist. */
+//从跳跃表中删除给定score和obj得节点
 int zslDelete(zskiplist *zsl, double score, robj *obj) {
     zskiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
     int i;
 
     x = zsl->header;
+    //遍历跳跃表，查找目标节点，并记录所有沿途节点
     for (i = zsl->level-1; i >= 0; i--) {
         while (x->level[i].forward &&
             (x->level[i].forward->score < score ||
                 (x->level[i].forward->score == score &&
                 compareStringObjects(x->level[i].forward->obj,obj) < 0)))
             x = x->level[i].forward;
+        //这个while循环结束时，1.x->forward==NULL 2. x->forward不为空，且（forward.score=score 或 score相等且obj>目标Obj)
         update[i] = x;
     }
     /* We may have multiple elements with the same score, what we need
      * is to find the element with both the right score and object. */
-    x = x->level[0].forward;
+    x = x->level[0].forward; //此时x在level[0]上，它的forward是目标节点
+    //检查找到的节点x，只要在score和obj都相同时，才将它删除
     if (x && score == x->score && equalStringObjects(x->obj,obj)) {
         zslDeleteNode(zsl, x, update);
         zslFreeNode(x);
