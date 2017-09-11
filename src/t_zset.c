@@ -55,44 +55,51 @@
 static int zslLexValueGteMin(robj *value, zlexrangespec *spec);
 static int zslLexValueLteMax(robj *value, zlexrangespec *spec);
 
+//创建一个层数为level的跳跃表节点
 zskiplistNode *zslCreateNode(int level, double score, robj *obj) {
     zskiplistNode *zn = zmalloc(sizeof(*zn)+level*sizeof(struct zskiplistLevel));
+    //设置分数和对象属性
     zn->score = score;
     zn->obj = obj;
     return zn;
 }
-
+//创建一个跳跃表
 zskiplist *zslCreate(void) {
     int j;
     zskiplist *zsl;
 
-    zsl = zmalloc(sizeof(*zsl));
+    zsl = zmalloc(sizeof(*zsl));//分配空间
+    //设置高度和起始层数
     zsl->level = 1;
     zsl->length = 0;
+    //初始化头节点
     zsl->header = zslCreateNode(ZSKIPLIST_MAXLEVEL,0,NULL);
     for (j = 0; j < ZSKIPLIST_MAXLEVEL; j++) {
         zsl->header->level[j].forward = NULL;
         zsl->header->level[j].span = 0;
     }
     zsl->header->backward = NULL;
+    //设置表尾
     zsl->tail = NULL;
     return zsl;
 }
-
+//释放给定的跳跃表节点
 void zslFreeNode(zskiplistNode *node) {
     decrRefCount(node->obj);
     zfree(node);
 }
-
+//释放跳跃表和其中的节点
 void zslFree(zskiplist *zsl) {
     zskiplistNode *node = zsl->header->level[0].forward, *next;
-
+    //释放表头
     zfree(zsl->header);
+    //遍历level[0]的节点，释放表中所有节点
     while(node) {
         next = node->level[0].forward;
         zslFreeNode(node);
         node = next;
     }
+    //释放跳跃表结构
     zfree(zsl);
 }
 
@@ -100,8 +107,10 @@ void zslFree(zskiplist *zsl) {
  * The return value of this function is between 1 and ZSKIPLIST_MAXLEVEL
  * (both inclusive), with a powerlaw-alike distribution where higher
  * levels are less likely to be returned. */
+//返回一个随机高度，介于1和32之间
 int zslRandomLevel(void) {
     int level = 1;
+    //while ((randome() & 31) < 0.25*31)
     while ((random()&0xFFFF) < (ZSKIPLIST_P * 0xFFFF))
         level += 1;
     return (level<ZSKIPLIST_MAXLEVEL) ? level : ZSKIPLIST_MAXLEVEL;
