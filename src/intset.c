@@ -37,11 +37,13 @@
 
 /* Note that these encodings are ordered, so:
  * INTSET_ENC_INT16 < INTSET_ENC_INT32 < INTSET_ENC_INT64. */
+//intset的编码方式，注意这三种编码是有序的的ENC_INT16 < ENC_INT32 < ENC_INT64
 #define INTSET_ENC_INT16 (sizeof(int16_t))
 #define INTSET_ENC_INT32 (sizeof(int32_t))
 #define INTSET_ENC_INT64 (sizeof(int64_t))
 
 /* Return the required encoding for the provided value. */
+//返回适用于v的编码方式
 static uint8_t _intsetValueEncoding(int64_t v) {
     if (v < INT32_MIN || v > INT32_MAX)
         return INTSET_ENC_INT64;
@@ -52,11 +54,17 @@ static uint8_t _intsetValueEncoding(int64_t v) {
 }
 
 /* Return the value at pos, given an encoding. */
+//根据给定的编码方式 enc ，返回集合的底层数组在 pos 索引上的元素。
 static int64_t _intsetGetEncoded(intset *is, int pos, uint8_t enc) {
     int64_t v64;
     int32_t v32;
     int16_t v16;
 
+    // ((ENCODING*)is->contents) 首先将数组转换回被编码的类型
+    // 然后 ((ENCODING*)is->contents)+pos 计算出元素在数组中的正确位置
+    // 之后 member(&vEnc, ..., sizeof(vEnc)) 再从数组中拷贝出正确数量的字节
+    // 如果有需要的话， memrevEncifbe(&vEnc) 会对拷贝出的字节进行大小端转换
+    // 最后将值返回
     if (enc == INTSET_ENC_INT64) {
         memcpy(&v64,((int64_t*)is->contents)+pos,sizeof(v64));
         memrev64ifbe(&v64);
@@ -73,14 +81,21 @@ static int64_t _intsetGetEncoded(intset *is, int pos, uint8_t enc) {
 }
 
 /* Return the value at pos, using the configured encoding. */
+//返回intset底层数组在 pos 索引上的值
 static int64_t _intsetGet(intset *is, int pos) {
     return _intsetGetEncoded(is,pos,intrev32ifbe(is->encoding));
 }
 
 /* Set the value at pos, using the configured encoding. */
+//根据inset的编码方式，将底层数组索引pos处的值设为value
 static void _intsetSet(intset *is, int pos, int64_t value) {
+    //获得intset的编码方式
     uint32_t encoding = intrev32ifbe(is->encoding);
-
+    // 根据编码 ((Enc_t*)is->contents) 将数组转换回正确的类型
+    // 然后 ((Enc_t*)is->contents)[pos] 定位到数组索引上
+    // 接着 ((Enc_t*)is->contents)[pos] = value 将值赋给数组
+    // 最后， ((Enc_t*)is->contents)+pos 定位到刚刚设置的新值上 
+    // 如果有需要的话， memrevEncifbe 将对值进行大小端转换
     if (encoding == INTSET_ENC_INT64) {
         ((int64_t*)is->contents)[pos] = value;
         memrev64ifbe(((int64_t*)is->contents)+pos);
@@ -94,14 +109,16 @@ static void _intsetSet(intset *is, int pos, int64_t value) {
 }
 
 /* Create an empty intset. */
+//创建一个空的inset
 intset *intsetNew(void) {
-    intset *is = zmalloc(sizeof(intset));
-    is->encoding = intrev32ifbe(INTSET_ENC_INT16);
-    is->length = 0;
+    intset *is = zmalloc(sizeof(intset));//分配内存
+    is->encoding = intrev32ifbe(INTSET_ENC_INT16);//初始选择int16编码
+    is->length = 0;//初始元素数量为0
     return is;
 }
 
 /* Resize the intset */
+//调整intset的内存空间大小，注意：如果调整后的大小比原有集合的大小要大，那么集合中原有元素的值不会被改变
 static intset *intsetResize(intset *is, uint32_t len) {
     uint32_t size = len*intrev32ifbe(is->encoding);
     is = zrealloc(is,sizeof(intset)+size);
@@ -112,26 +129,30 @@ static intset *intsetResize(intset *is, uint32_t len) {
  * sets "pos" to the position of the value within the intset. Return 0 when
  * the value is not present in the intset and sets "pos" to the position
  * where "value" can be inserted. */
+//在is中查找value所在处的索引，如果找到返回1并将*pos设为索引值；如果没找到返回0并将*pos设为可以插入到数组中的位置
 static uint8_t intsetSearch(intset *is, int64_t value, uint32_t *pos) {
     int min = 0, max = intrev32ifbe(is->length)-1, mid = -1;
     int64_t cur = -1;
 
     /* The value can never be found when the set is empty */
+    //处理is为空情况
     if (intrev32ifbe(is->length) == 0) {
         if (pos) *pos = 0;
         return 0;
     } else {
         /* Check for the case where we know we cannot find the value,
          * but do know the insert position. */
+        //如果value比最大值要大，那么value肯定不在集合中，应该放在底层数组的最末端
         if (value > _intsetGet(is,intrev32ifbe(is->length)-1)) {
             if (pos) *pos = intrev32ifbe(is->length);
             return 0;
         } else if (value < _intsetGet(is,0)) {
+            //如果value比最小值小，那么value肯定不在集合中，应该放在底层数组的最前端
             if (pos) *pos = 0;
             return 0;
         }
     }
-
+    //在有序数组中进行二分查找
     while(max >= min) {
         mid = ((unsigned int)min + (unsigned int)max) >> 1;
         cur = _intsetGet(is,mid);
@@ -143,11 +164,12 @@ static uint8_t intsetSearch(intset *is, int64_t value, uint32_t *pos) {
             break;
         }
     }
-
+    //已经找到
     if (value == cur) {
         if (pos) *pos = mid;
         return 1;
     } else {
+        //未找到
         if (pos) *pos = min;
         return 0;
     }
