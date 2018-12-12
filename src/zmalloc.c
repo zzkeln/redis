@@ -45,8 +45,10 @@ void zlibc_free(void *ptr) {
 #include "zmalloc.h"
 #include "atomicvar.h"
 
+//是否有根据void*指针获取该块内存大小的库函数，如果没有的话，那么redis分配的内存块前面会包含4或8字节
+//来记录该块内存的大小，否则直接调用函数获取该块内存大小
 #ifdef HAVE_MALLOC_SIZE
-#define PREFIX_SIZE (0)
+#define PREFIX_SIZE (0) //已有获取内存块大小的函数，设置prefix_size=0
 #else
 #if defined(__sun) || defined(__sparc) || defined(__sparc__)
 #define PREFIX_SIZE (sizeof(long long))
@@ -57,6 +59,7 @@ void zlibc_free(void *ptr) {
 
 /* Explicitly override malloc/free etc when using tcmalloc. */
 #if defined(USE_TCMALLOC)
+//如果用tcmalloc的话，具体的分配、释放函数用tcmalloc提供的
 #define malloc(size) tc_malloc(size)
 #define calloc(count,size) tc_calloc(count,size)
 #define realloc(ptr,size) tc_realloc(ptr,size)
@@ -70,20 +73,23 @@ void zlibc_free(void *ptr) {
 #define dallocx(ptr,flags) je_dallocx(ptr,flags)
 #endif
 
+//之前新分配了n个字节的内存块，将该大小记录到全局的used_memory中，注意这里会将n按照8字节对齐
+//例如如果n=13，那么n会变成16即round up to 8的倍数
 #define update_zmalloc_stat_alloc(__n) do { \
     size_t _n = (__n); \
-    if (_n&(sizeof(long)-1)) _n += sizeof(long)-(_n&(sizeof(long)-1)); \
+    if (_n&(sizeof(long)-1)) _n += sizeof(long)-(_n&(sizeof(long)-1)); \ 
     atomicIncr(used_memory,__n); \
 } while(0)
 
+//之前是否了n字节的内存块，将该大小更新全局的used_memory中，同样也会将n按照8字节向上对齐
 #define update_zmalloc_stat_free(__n) do { \
     size_t _n = (__n); \
     if (_n&(sizeof(long)-1)) _n += sizeof(long)-(_n&(sizeof(long)-1)); \
     atomicDecr(used_memory,__n); \
 } while(0)
 
-static size_t used_memory = 0;
-pthread_mutex_t used_memory_mutex = PTHREAD_MUTEX_INITIALIZER;
+static size_t used_memory = 0; //当前已使用内存大小，全局变量
+pthread_mutex_t used_memory_mutex = PTHREAD_MUTEX_INITIALIZER; //锁，保护used_memory的更新
 
 static void zmalloc_default_oom(size_t size) {
     fprintf(stderr, "zmalloc: Out of memory trying to allocate %zu bytes\n",
